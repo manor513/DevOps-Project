@@ -1,6 +1,6 @@
 FROM nginx:latest
 COPY ./index.html /usr/share/nginx/html/index.html
-COPY ./commitphoto.jpg /usr/share/nginx/html/Commit/
+COPY ./photo.jpg /usr/share/nginx/html/Commit/
 COPY ./app.py /python/
 COPY ./default.conf /etc/nginx/conf.d/default.conf
 COPY ./nginx.conf /etc/nginx/nginx.conf
