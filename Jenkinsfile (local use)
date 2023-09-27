@@ -1,0 +1,24 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            steps {
+                bat 'docker build -t commitapp .'
+            }
+        }
+
+        stage('Run') {
+            steps {
+                bat 'docker-compose up -d'
+            }
+        }
+
+        stage('Tag and Push image to ECR') {
+            steps {
+		bat 'docker tag commitapp:latest public.ecr.aws/h7v6l5a7/commitapp:latest'
+		bat 'docker push public.ecr.aws/h7v6l5a7/commitapp:latest'
+            }
+        }
+    }
+}

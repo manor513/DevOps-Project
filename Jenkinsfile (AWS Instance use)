@@ -1,0 +1,91 @@
+pipeline {
+    agent any
+	
+    stages {
+		stage('Git Clone From CodeCommit Rep') {
+            steps {
+                script {
+                    // Using IAM Role that configured on the Jenkins EC2 instance and clone the repository to the git local directory at the path /my-code
+                    sh "git clone https://git-codecommit.us-east-1.amazonaws.com/v1/repos/commitrep /my-code"
+                }
+            }
+        }
+		stage('Build Docker Image') {
+            steps {
+                script {
+						sh 'docker build -t commitapp /my-code'
+                }
+            }
+        }
+        stage('Push Image to Amazon ECR') {
+            steps {
+                script {
+                    sh 'aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/h7v6l5a7'
+                    sh 'docker tag commitapp:latest public.ecr.aws/h7v6l5a7/commitapp:latest'
+                    sh 'docker push public.ecr.aws/h7v6l5a7/commitapp:latest'
+                }
+            }
+        }
+        stage('Deploy ECS Task') {
+			steps {
+				script {
+					def taskDefinition = '''
+						{
+							"family": "Commit_Task_6",
+							"containerDefinitions": [
+								{
+									"name": "CommitContainer",
+									"image": "public.ecr.aws/h7v6l5a7/commitapp:latest",
+									"cpu": 0,
+									"portMappings": [
+										{
+											"name": "commitcontainer-80-tcp",
+											"containerPort": 80,
+											"hostPort": 8080,
+											"protocol": "tcp",
+											"appProtocol": "http"
+										}
+									],
+									"essential": true,
+									"environment": [],
+									"environmentFiles": [],
+									"mountPoints": [],
+									"volumesFrom": [],
+									"ulimits": [],
+									"logConfiguration": {
+										"logDriver": "awslogs",
+										"options": {
+											"awslogs-create-group": "true",
+											"awslogs-group": "/ecs/Commit_Task_6",
+											"awslogs-region": "us-east-1",
+											"awslogs-stream-prefix": "ecs"
+										},
+										"secretOptions": []
+									}
+								}
+							],
+							"executionRoleArn": "arn:aws:iam::350100002008:role/ecsTaskExecutionRole",
+							"requiresCompatibilities": [
+								"EC2"
+							],
+							"cpu": "1024",
+							"memory": "900",
+							"runtimePlatform": {
+								"cpuArchitecture": "X86_64",
+								"operatingSystemFamily": "LINUX"
+							}
+						}
+					'''
+
+					// Register the task definition
+					sh "echo '$taskDefinition' > task-definition.json"
+					sh '''
+						aws ecs register-task-definition \
+							--cli-input-json file://task-definition.json
+					'''
+					sh aws ecs run-task --cluster CommitECSCluster --task-definition Commit_Task_6
+				}
+			}
+		}
+	}
+}
